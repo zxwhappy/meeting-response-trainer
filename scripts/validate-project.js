@@ -49,6 +49,13 @@ walk(root).filter((file) => file.endsWith('.js')).forEach((file) => {
 
 const scenarios = require(path.join(root, 'miniprogram/data/scenarios'));
 const serverScenarios = require(path.join(root, 'cloudfunctions/analyzeResponse/data/scenarios'));
+const miniprogramRoot = path.join(root, 'miniprogram');
+const staticMediaFiles = walk(miniprogramRoot)
+  .filter((file) => /\.(?:aac|gif|jpe?g|m4a|mp3|ogg|png|svg|wav|webp)$/i.test(file));
+const staticMediaBytes = staticMediaFiles
+  .reduce((total, file) => total + fs.statSync(file).size, 0);
+check(staticMediaBytes <= 200 * 1024,
+  `小程序代码包内图片和音频资源合计 ${(staticMediaBytes / 1024).toFixed(1)} KB，超过 200 KB`);
 check(scenarios.length >= 6, '至少需要 6 个场景');
 check(new Set(scenarios.map((item) => item.id)).size === scenarios.length, '场景 ID 必须唯一');
 scenarios.forEach((scenario) => {
@@ -58,12 +65,16 @@ scenarios.forEach((scenario) => {
   const audioPath = path.join(root, 'miniprogram', scenario.audioUrl.replace(/^\//, ''));
   check(fs.existsSync(audioPath), `场景 ${scenario.id} 缺少音频`);
   if (fs.existsSync(audioPath)) {
-    check(fs.statSync(audioPath).size > 50 * 1024, `场景 ${scenario.id} 音频可能是占位文件`);
+    check(fs.statSync(audioPath).size > 10 * 1024, `场景 ${scenario.id} 音频可能是占位文件`);
     try {
       const type = childProcess.execFileSync('/usr/bin/file', [audioPath], { encoding: 'utf8' });
-      check(/MPEG|Audio file/i.test(type), `场景 ${scenario.id} 不是可识别的 MP3`);
-      check(/16 kHz|16000 Hz/i.test(type), `场景 ${scenario.id} 不是 16kHz`);
-      check(/mono|monaural/i.test(type), `场景 ${scenario.id} 不是单声道`);
+      check(/AAC|Audio file|MPEG/i.test(type), `场景 ${scenario.id} 不是可识别的音频文件`);
+      if (fs.existsSync('/usr/bin/afinfo')) {
+        const metadata = childProcess.execFileSync('/usr/bin/afinfo', [audioPath], { encoding: 'utf8' });
+        check(/1 ch,\s+16000 Hz/i.test(metadata), `场景 ${scenario.id} 不是 16kHz 单声道`);
+        const duration = metadata.match(/estimated duration:\s+([\d.]+) sec/i);
+        check(Boolean(duration && Number(duration[1]) >= 10), `场景 ${scenario.id} 时长不足 10 秒`);
+      }
     } catch (_) {
       warnings.push(`无法读取 ${scenario.id} 的音频元数据`);
     }
@@ -100,5 +111,5 @@ if (failures.length) {
   failures.forEach((message) => console.error(`FAIL ${message}`));
   process.exitCode = 1;
 } else {
-  console.log(`PASS 项目静态检查完成：${scenarios.length} 个场景，${handlerNames.length} 个事件绑定`);
+  console.log(`PASS 项目静态检查完成：${scenarios.length} 个场景，${handlerNames.length} 个事件绑定，静态媒体 ${(staticMediaBytes / 1024).toFixed(1)} KB`);
 }
