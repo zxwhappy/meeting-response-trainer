@@ -2,7 +2,7 @@
   "triggers": [
     {
       "name": "cleanup-temp-audio-every-30-minutes",
-      "type": 2,
+      "type": "timer",
       "config": "0 */30 * * * * *"
     }
   ],
