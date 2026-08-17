@@ -30,6 +30,15 @@ function walk(directory) {
   }
 });
 
+try {
+  const appConfig = JSON.parse(read('miniprogram/app.json'));
+  const appPermissions = appConfig.permission || {};
+  check(!Object.prototype.hasOwnProperty.call(appPermissions, 'scope.record'),
+    'miniprogram/app.json 的 permission 不支持 scope.record；请通过 wx.authorize 申请录音权限');
+} catch (_) {
+  // JSON validity is reported by the check above.
+}
+
 walk(root).filter((file) => file.endsWith('.js')).forEach((file) => {
   try {
     childProcess.execFileSync(process.execPath, ['--check', file], { stdio: 'pipe' });

@@ -9,11 +9,6 @@
     "backgroundColor": "#F7F5F0",
     "backgroundTextStyle": "light"
   },
-  "permission": {
-    "scope.record": {
-      "desc": "用于录制你的会议回应，并在本次反馈生成后删除"
-    }
-  },
   "__usePrivacyCheck__": true,
   "sitemapLocation": "sitemap.json",
   "style": "v2",
