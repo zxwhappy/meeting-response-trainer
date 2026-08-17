@@ -1,6 +1,6 @@
 {
   "description": "会答小练微信小程序 MVP",
-  "appid": "touristappid",
+  "appid": "wx752c84d4ae97c5ff",
   "projectname": "meeting-response-trainer",
   "miniprogramRoot": "miniprogram/",
   "cloudfunctionRoot": "cloudfunctions/",
@@ -14,9 +14,32 @@
     "urlCheck": true,
     "checkSiteMap": true,
     "coverView": true,
-    "showShadowRootInWxmlPanel": true
+    "showShadowRootInWxmlPanel": true,
+    "compileWorklet": false,
+    "uglifyFileName": false,
+    "uploadWithSourceMap": true,
+    "packNpmManually": false,
+    "packNpmRelationList": [],
+    "minifyWXSS": true,
+    "minifyWXML": true,
+    "localPlugins": false,
+    "disableUseStrict": false,
+    "condition": false,
+    "swc": false,
+    "disableSWC": true,
+    "babelSetting": {
+      "ignore": [],
+      "disablePlugins": [],
+      "outputPath": ""
+    }
   },
   "libVersion": "3.7.12",
   "simulatorType": "wechat",
-  "condition": {}
+  "condition": {},
+  "simulatorPluginLibVersion": {},
+  "packOptions": {
+    "ignore": [],
+    "include": []
+  },
+  "editorSetting": {}
 }
