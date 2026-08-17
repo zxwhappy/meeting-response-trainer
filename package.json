@@ -1,0 +1,13 @@
+{
+  "name": "meeting-response-trainer",
+  "version": "0.1.0",
+  "private": true,
+  "description": "会答小练微信小程序 MVP",
+  "scripts": {
+    "test": "node --test tests/*.test.js",
+    "check": "node scripts/validate-project.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

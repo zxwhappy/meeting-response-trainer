@@ -1,0 +1,258 @@
+<view class="page-shell">
+  <view wx:if="{{mockMode}}" class="mock-banner">开发模拟模式 · 真实用户测试前必须关闭</view>
+
+  <view wx:if="{{phase !== STATES.TODAY}}" class="stage-header" aria-label="练习进度">
+    <view class="stage-labels">
+      <text>听题</text><text>准备</text><text>回应</text><text>反馈</text><text>复练</text>
+    </view>
+    <view class="progress-track"><view class="progress-fill" style="width: {{progress}}%;"></view></view>
+  </view>
+
+  <view wx:if="{{phase === STATES.TODAY}}" class="hero-card card">
+    <view class="brand-mark">答</view>
+    <text class="eyebrow">会答小练</text>
+    <text class="hero-title">听完一段会议发言，练习说清判断和下一步</text>
+    <text class="hero-copy">不背标准答案。先说一次，拿到三点短反馈，再针对同一场景说一次。</text>
+
+    <view class="today-scene">
+      <view>
+        <text class="meta-label">今日会议场景</text>
+        <text class="scene-title">{{scenario.title}}</text>
+      </view>
+      <text class="duration-chip">约 3 分钟</text>
+    </view>
+
+    <view wx:if="{{todayCompleted}}" class="completed-note">
+      <text class="completed-icon">✓</text>
+      <text>今日已完成</text>
+    </view>
+
+    <button wx:if="{{!todayCompleted}}" class="primary-button" bindtap="startPractice">开始练习</button>
+    <button wx:else class="primary-button" bindtap="nextPractice">再练一题</button>
+    <button class="text-button privacy-entry" bindtap="showPrivacy">隐私说明</button>
+  </view>
+
+  <view wx:if="{{phase === STATES.LISTEN}}" class="card task-card">
+    <text class="eyebrow">你在会议中的角色</text>
+    <text class="task-title">{{scenario.role}}</text>
+    <text class="body-copy">{{scenario.background}}</text>
+
+    <view class="audio-panel">
+      <button class="primary-button" disabled="{{audioPlaying || audioPlayCount >= 2}}" bindtap="playScenarioAudio">
+        {{audioPlaying ? '正在播放…' : (audioPlayCount === 0 ? '播放会议发言' : '重听一次')}}
+      </button>
+      <view wx:if="{{audioPlaying || audioProgress > 0}}" class="audio-progress-wrap">
+        <view class="audio-progress"><view class="audio-progress-fill" style="width: {{audioProgress}}%;"></view></view>
+        <view class="audio-time"><text>{{audioCurrentText}}</text><text>{{audioDurationText}}</text></view>
+      </view>
+    </view>
+
+    <view wx:if="{{audioFallbackVisible}}" class="fallback-box">
+      <text class="fallback-title">音频连续播放失败</text>
+      <text class="body-copy">可以查看文字版继续练习：</text>
+      <text class="speech-text">“{{scenario.speech}}”</text>
+      <button class="secondary-button" bindtap="continueWithFallbackText">看完了，开始准备</button>
+    </view>
+  </view>
+
+  <view wx:if="{{phase === STATES.PREP_FIRST}}" class="card task-card centered-card">
+    <text class="eyebrow">30 秒准备</text>
+    <text class="countdown">{{prepSeconds}}</text>
+    <text class="body-copy prep-copy">先想清楚你怎么看，以及下一步怎么办</text>
+    <button class="primary-button" bindtap="readyEarly">我准备好了</button>
+    <button wx:if="{{audioPlayCount < 2}}" class="text-button" bindtap="replayFirstAudio">重听一次会议发言</button>
+  </view>
+
+  <view wx:if="{{phase === STATES.RECORD_FIRST}}" class="card task-card centered-card">
+    <text class="eyebrow">第一次回应</text>
+    <text class="task-title">直接回应这场会议</text>
+    <text class="support-copy">最长 60 秒，至少说满 3 秒</text>
+
+    <view wx:if="{{micPermissionDenied}}" class="permission-box">
+      <text class="fallback-title">需要麦克风权限</text>
+      <text class="body-copy">允许后才能录制回应；我们不会长期保存录音。</text>
+      <button class="primary-button" bindtap="openSettings">打开设置</button>
+      <button class="text-button" bindtap="returnToday">暂不练习</button>
+    </view>
+
+    <block wx:else>
+      <view wx:if="{{recording}}" class="recording-zone">
+        <view class="pulse-wrap"><view class="pulse-ring"></view><view class="record-dot"></view></view>
+        <text class="record-time">{{recordingDurationText}}</text>
+        <text class="support-copy">正在录音</text>
+        <button class="primary-button orange-button" bindtap="stopRecording">结束回应</button>
+      </view>
+
+      <view wx:elif="{{hasRecording}}" class="recorded-zone">
+        <view class="recorded-badge">已录制 {{recordingDurationText}}</view>
+        <button class="secondary-button" bindtap="togglePreview">{{previewPlaying ? '停止试听' : '试听回应'}}</button>
+        <button class="text-button" bindtap="rerecord">重新录制</button>
+        <button class="primary-button" disabled="{{isSubmitting}}" bindtap="submitRecording">提交并查看反馈</button>
+      </view>
+
+      <button wx:else class="record-button" bindtap="requestStartRecording">
+        <text class="record-button-dot"></text>
+        <text>开始回应</text>
+      </button>
+    </block>
+  </view>
+
+  <view wx:if="{{phase === STATES.ANALYZING_FIRST || phase === STATES.ANALYZING_SECOND}}" class="card task-card centered-card analysis-card">
+    <view class="listening-loader"><view></view><view></view><view></view></view>
+    <text class="task-title">{{analysisMessage}}</text>
+    <text class="body-copy">通常 20 秒内完成，请不要重复提交</text>
+    <view class="skeleton-line wide"></view>
+    <view class="skeleton-line"></view>
+    <view class="skeleton-line short"></view>
+  </view>
+
+  <view wx:if="{{phase === STATES.FEEDBACK_FIRST}}" class="feedback-stack">
+    <view class="card intro-feedback-card">
+      <text class="eyebrow">第一次反馈</text>
+      <text class="task-title">先只看这三点</text>
+    </view>
+
+    <view wx:for="{{firstFeedbackItems}}" wx:key="key" class="card feedback-item {{item.passed ? 'feedback-pass' : 'feedback-improve'}}">
+      <view class="feedback-row">
+        <text class="feedback-label">{{item.label}}</text>
+        <text class="status-pill">{{item.status}}</text>
+      </view>
+      <text class="evidence">{{item.evidence}}</text>
+      <text class="feedback-copy">{{item.feedback}}</text>
+    </view>
+
+    <view class="card priority-card">
+      <text class="priority-kicker">最优先修改的一点</text>
+      <text class="priority-text">{{firstFeedback.priority}}</text>
+    </view>
+
+    <view class="card transcript-card">
+      <button class="transcript-toggle" bindtap="toggleFirstTranscript">语音转写 {{firstTranscriptExpanded ? '收起' : '展开'}}</button>
+      <text wx:if="{{firstTranscriptExpanded}}" class="transcript-text">{{firstFeedback.transcript}}</text>
+      <button class="text-button compact-button" bindtap="markTranscriptInaccurate">转写不准确</button>
+    </view>
+
+    <button class="primary-button sticky-action" bindtap="startSecondRound">带着提示再说一次</button>
+  </view>
+
+  <view wx:if="{{phase === STATES.RECORD_SECOND}}" class="card task-card centered-card">
+    <text class="eyebrow">第二次回应</text>
+    <text class="structure-hint">接住对方 <text>→</text> 给出判断 <text>→</text> 推进下一步</text>
+
+    <view wx:if="{{secondStage === 'choice'}}" class="second-choice">
+      <text class="body-copy">仍然回应同一个场景。你可以先重听一次，也可以直接准备。</text>
+      <button class="secondary-button" disabled="{{secondAudioPlayed || audioPlaying}}" bindtap="playSecondAudio">{{audioPlaying ? '正在播放…' : '重听会议发言'}}</button>
+      <button class="primary-button" bindtap="skipSecondAudio">开始 15 秒准备</button>
+    </view>
+
+    <view wx:elif="{{secondStage === 'prep'}}" class="prep-zone">
+      <text class="countdown small-countdown">{{prepSeconds}}</text>
+      <text class="body-copy">这次带着三步结构再说一次</text>
+      <button class="primary-button" bindtap="readyEarly">我准备好了</button>
+    </view>
+
+    <view wx:else>
+      <view wx:if="{{micPermissionDenied}}" class="permission-box">
+        <text class="fallback-title">需要麦克风权限</text>
+        <button class="primary-button" bindtap="openSettings">打开设置</button>
+        <button class="text-button" bindtap="returnToday">暂不练习</button>
+      </view>
+
+      <view wx:elif="{{recording}}" class="recording-zone">
+        <view class="pulse-wrap"><view class="pulse-ring"></view><view class="record-dot"></view></view>
+        <text class="record-time">{{recordingDurationText}}</text>
+        <button class="primary-button orange-button" bindtap="stopRecording">结束回应</button>
+      </view>
+
+      <view wx:elif="{{hasRecording}}" class="recorded-zone">
+        <view class="recorded-badge">已录制 {{recordingDurationText}}</view>
+        <button class="secondary-button" bindtap="togglePreview">{{previewPlaying ? '停止试听' : '试听回应'}}</button>
+        <button class="text-button" bindtap="rerecord">重新录制</button>
+        <button class="primary-button" disabled="{{isSubmitting}}" bindtap="submitRecording">提交第二次回应</button>
+      </view>
+
+      <button wx:else class="record-button" bindtap="requestStartRecording">
+        <text class="record-button-dot"></text><text>开始回应</text>
+      </button>
+    </view>
+  </view>
+
+  <view wx:if="{{phase === STATES.COMPARISON}}" class="comparison-stack">
+    <view class="card result-card">
+      <text class="eyebrow">前后对比</text>
+      <text class="result-title">{{comparison.title}}</text>
+      <view wx:if="{{comparison.newDimensions.length}}" class="change-list">
+        <text>这次新增：</text>
+        <text wx:for="{{comparison.newDimensions}}" wx:key="*this" class="change-chip">{{item}}</text>
+      </view>
+      <view wx:if="{{comparison.weakest && comparison.delta === 0}}" class="change-list">
+        <text>下一次只练：</text><text class="change-chip orange-chip">{{comparison.weakest}}</text>
+      </view>
+    </view>
+
+    <view class="compare-grid">
+      <view class="card compare-column">
+        <text class="compare-title">第一次</text>
+        <view wx:for="{{firstFeedbackItems}}" wx:key="key" class="compare-row">
+          <text>{{item.label}}</text><text class="mini-status {{item.passed ? 'mini-pass' : 'mini-improve'}}">{{item.status}}</text>
+        </view>
+        <button class="transcript-toggle compare-toggle" bindtap="toggleFirstTranscript">转写 {{firstTranscriptExpanded ? '收起' : '展开'}}</button>
+        <text wx:if="{{firstTranscriptExpanded}}" class="transcript-text">{{firstFeedback.transcript}}</text>
+      </view>
+
+      <view class="card compare-column">
+        <text class="compare-title">第二次</text>
+        <view wx:for="{{secondFeedbackItems}}" wx:key="key" class="compare-row">
+          <text>{{item.label}}</text><text class="mini-status {{item.passed ? 'mini-pass' : 'mini-improve'}}">{{item.status}}</text>
+        </view>
+        <button class="transcript-toggle compare-toggle" bindtap="toggleSecondTranscript">转写 {{secondTranscriptExpanded ? '收起' : '展开'}}</button>
+        <text wx:if="{{secondTranscriptExpanded}}" class="transcript-text">{{secondFeedback.transcript}}</text>
+      </view>
+    </view>
+
+    <view class="card survey-card">
+      <text class="survey-title">这次反馈有用吗？</text>
+      <view class="survey-actions">
+        <button class="choice-button {{helpfulChoice === 'yes' ? 'choice-selected' : ''}}" data-choice="yes" bindtap="chooseHelpful">有用</button>
+        <button class="choice-button {{helpfulChoice === 'no' ? 'choice-selected' : ''}}" data-choice="no" bindtap="chooseHelpful">没什么用</button>
+      </view>
+
+      <text class="survey-title request-title">你还想练什么会议场景？</text>
+      <textarea class="scenario-input" maxlength="100" value="{{scenarioRequest}}" bindinput="onScenarioRequestInput" placeholder="例如：领导临时追问进度（请勿填写客户或个人敏感信息）"></textarea>
+      <view class="input-footer"><text>{{scenarioRequest.length}} / 100</text><button class="small-submit" disabled="{{!scenarioRequest || requestSubmitted}}" bindtap="submitScenarioRequest">{{requestSubmitted ? '已提交' : '提交'}}</button></view>
+    </view>
+
+    <button class="primary-button" bindtap="completePractice">完成练习</button>
+    <button class="secondary-button bottom-secondary" bindtap="nextPractice">再练一题</button>
+  </view>
+
+  <view wx:if="{{phase === STATES.ERROR}}" class="card task-card centered-card error-card">
+    <view class="error-symbol">!</view>
+    <text class="task-title">刚才没有完成</text>
+    <text class="body-copy">{{errorView.message}}</text>
+    <text wx:if="{{errorView.detail}}" class="dev-detail">开发信息：{{errorView.detail}}</text>
+    <button wx:if="{{errorView.canRetry}}" class="primary-button" bindtap="retryAnalysis">重新分析一次</button>
+    <button wx:if="{{errorView.canRerecord}}" class="secondary-button" bindtap="rerecordFromError">重新录音</button>
+    <button wx:if="{{errorView.canFallback}}" class="text-button" bindtap="useSelfCheck">使用三点自检完成本轮</button>
+    <button class="text-button" bindtap="returnToday">暂不练习</button>
+  </view>
+
+  <view wx:if="{{privacyVisible}}" class="modal-mask" catchtouchmove="noop">
+    <view class="modal-card">
+      <text class="modal-title">隐私说明</text>
+      <text class="modal-copy">录音只用于本次语音转写和生成三点反馈。处理结束后会立即删除原始录音，异常时也会尝试删除。</text>
+      <text class="modal-copy">我们不长期保存录音或完整转写，不用于模型训练，也不收集姓名、手机号、微信昵称或原始 OpenID。</text>
+      <text class="modal-copy">行为数据仅使用不可逆匿名用户键，用于限制每日调用次数和计算练习效果。</text>
+      <button class="primary-button" bindtap="hidePrivacy">我知道了</button>
+    </view>
+  </view>
+
+  <view wx:if="{{micPurposeVisible}}" class="modal-mask" catchtouchmove="noop">
+    <view class="modal-card">
+      <text class="modal-title">用录音完成这次练习</text>
+      <text class="modal-copy">我们需要麦克风录下你的回应，只用于转写和生成本次反馈。处理完成后会删除，不会用于训练模型。</text>
+      <button id="agree-privacy-button" class="primary-button" open-type="agreePrivacyAuthorization" bindagreeprivacyauthorization="acceptMicPurpose">继续并授权</button>
+      <button class="text-button" bindtap="declineMicPurpose">暂不练习</button>
+    </view>
+  </view>
+</view>

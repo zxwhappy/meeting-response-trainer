@@ -1,0 +1,11 @@
+{
+  "triggers": [
+    {
+      "name": "cleanup-temp-audio-every-30-minutes",
+      "type": 2,
+      "config": "0 */30 * * * * *"
+    }
+  ],
+  "timeout": 30,
+  "memorySize": 128
+}

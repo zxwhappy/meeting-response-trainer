@@ -1,0 +1,22 @@
+{
+  "description": "会答小练微信小程序 MVP",
+  "appid": "touristappid",
+  "projectname": "meeting-response-trainer",
+  "miniprogramRoot": "miniprogram/",
+  "cloudfunctionRoot": "cloudfunctions/",
+  "compileType": "miniprogram",
+  "setting": {
+    "useCompilerPlugins": false,
+    "es6": true,
+    "enhance": true,
+    "postcss": true,
+    "minified": true,
+    "urlCheck": true,
+    "checkSiteMap": true,
+    "coverView": true,
+    "showShadowRootInWxmlPanel": true
+  },
+  "libVersion": "3.7.12",
+  "simulatorType": "wechat",
+  "condition": {}
+}
