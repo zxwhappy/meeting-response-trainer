@@ -1,50 +1,45 @@
 const MIN_RECORDING_MS = 3000;
 
-function hashString(value) {
-  let hash = 0;
-  for (let index = 0; index < value.length; index += 1) {
-    hash = (hash * 31 + value.charCodeAt(index)) >>> 0;
-  }
-  return hash;
+function listEnabledScenarios(scenarios) {
+  return (scenarios || []).filter((scenario) => scenario.enabled !== false);
 }
 
-function selectDailyScenario({ date, scenarios, saved, requestedNext = false }) {
-  const enabled = (scenarios || []).filter((scenario) => scenario.enabled !== false);
-  if (!date || enabled.length === 0) {
+function createPracticeForScenario({ date, scenarios, scenarioId }) {
+  const enabled = listEnabledScenarios(scenarios);
+  if (!date || !scenarioId || enabled.length === 0) {
     throw new Error('没有可用的练习场景');
   }
-
-  const savedIndex = saved
-    ? enabled.findIndex((scenario) => scenario.id === saved.scenarioId)
-    : -1;
-
-  if (!requestedNext && saved && saved.date === date && savedIndex >= 0) {
-    return {
-      date,
-      scenarioId: saved.scenarioId,
-      completed: Boolean(saved.completed),
-      lastResults: saved.lastResults || null,
-      completedAt: saved.completedAt || null
-    };
+  const scenario = enabled.find((item) => item.id === scenarioId);
+  if (!scenario) {
+    throw new Error('所选练习场景不可用');
   }
-
-  let nextIndex;
-  if (requestedNext && savedIndex >= 0) {
-    nextIndex = (savedIndex + 1) % enabled.length;
-  } else {
-    nextIndex = hashString(date) % enabled.length;
-    if (saved && saved.date !== date && savedIndex === nextIndex && enabled.length > 1) {
-      nextIndex = (nextIndex + 1) % enabled.length;
-    }
-  }
-
   return {
     date,
-    scenarioId: enabled[nextIndex].id,
+    scenarioId: scenario.id,
     completed: false,
     lastResults: null,
     completedAt: null
   };
+}
+
+function getSceneExitPrompt({ phase, recording, isSubmitting, hasRecording, hasFirstFeedback }) {
+  if (isSubmitting || phase === 'analyzingFirst' || phase === 'analyzingSecond') {
+    return {
+      title: '退出本轮练习？',
+      content: '分析已经开始，返回后结果不会再显示，本次分析仍可能计入今日次数。'
+    };
+  }
+  const hasProgress = recording
+    || hasRecording
+    || hasFirstFeedback
+    || ['recordFirst', 'feedbackFirst', 'recordSecond', 'error'].includes(phase);
+  if (hasProgress) {
+    return {
+      title: '放弃本轮练习？',
+      content: '当前录音和本轮练习进度会被清空。'
+    };
+  }
+  return null;
 }
 
 function checkSubmission({ durationMs, tempFilePath, isSubmitting }) {
@@ -69,7 +64,9 @@ function createRequestId(sessionId, round, nowMs, randomValue) {
 
 module.exports = {
   MIN_RECORDING_MS,
-  selectDailyScenario,
+  listEnabledScenarios,
+  createPracticeForScenario,
+  getSceneExitPrompt,
   checkSubmission,
   createRequestId
 };

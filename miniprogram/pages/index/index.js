@@ -7,7 +7,9 @@ const {
   recoverFromError
 } = require('../../utils/stateMachine');
 const {
-  selectDailyScenario,
+  listEnabledScenarios,
+  createPracticeForScenario,
+  getSceneExitPrompt,
   checkSubmission,
   createRequestId
 } = require('../../utils/practice');
@@ -89,9 +91,10 @@ Page({
     phase: STATES.TODAY,
     progress: 0,
     scenario: null,
-    todayCompleted: false,
+    scenarioOptions: listEnabledScenarios(scenarios),
     mockMode: config.mockMode,
     privacyVisible: false,
+    exitConfirm: null,
     micPurposeVisible: false,
     micPermissionDenied: false,
     audioPlaying: false,
@@ -132,9 +135,10 @@ Page({
     this.recordingPath = '';
     this.recordingDurationMs = 0;
     this.analysisRetryUsed = { 1: false, 2: false };
+    this.practiceRunId = 0;
     this.micExplained = false;
     this.interruptedRecording = false;
-    this.initDailyScenario(false);
+    this.initScenarioSelection();
     this.initAudioManagers();
     this.initRecorder();
     this.emit('app_open');
@@ -162,6 +166,7 @@ Page({
   },
 
   onUnload() {
+    this.practiceRunId += 1;
     this.clearCountdown();
     this.clearRecordingTimer();
     this.clearAnalysisTimers();
@@ -170,20 +175,11 @@ Page({
     if (this.previewAudio) this.previewAudio.destroy();
   },
 
-  initDailyScenario(requestedNext) {
-    const saved = wx.getStorageSync(PRACTICE_KEY) || null;
-    const practice = selectDailyScenario({
-      date: localDate(),
-      scenarios,
-      saved,
-      requestedNext: Boolean(requestedNext)
-    });
-    const scenario = scenarios.find((item) => item.id === practice.scenarioId);
-    wx.setStorageSync(PRACTICE_KEY, practice);
-    this.practice = practice;
+  initScenarioSelection() {
+    this.practice = wx.getStorageSync(PRACTICE_KEY) || null;
     this.setData({
-      scenario,
-      todayCompleted: practice.completed,
+      scenario: null,
+      scenarioOptions: listEnabledScenarios(scenarios),
       phase: STATES.TODAY,
       progress: 0
     });
@@ -208,18 +204,46 @@ Page({
     });
   },
 
-  startPractice() {
+  selectScenario(event) {
+    const scenarioId = event.currentTarget.dataset.id;
+    let practice;
+    try {
+      practice = createPracticeForScenario({
+        date: localDate(),
+        scenarios,
+        scenarioId
+      });
+    } catch (error) {
+      wx.showToast({ title: error.message, icon: 'none' });
+      return;
+    }
+    const scenario = scenarios.find((item) => item.id === practice.scenarioId);
     this.resetSessionResults();
+    this.practice = practice;
+    wx.setStorageSync(PRACTICE_KEY, practice);
+    this.setData({ scenario });
     this.moveTo(STATES.LISTEN);
     this.emit('practice_start', { round: 1 });
   },
 
-  nextPractice() {
+  repeatScenario() {
+    if (!this.data.scenario) return;
+    const scenario = this.data.scenario;
+    const practice = createPracticeForScenario({
+      date: localDate(),
+      scenarios,
+      scenarioId: scenario.id
+    });
     this.resetSessionResults();
-    this.initDailyScenario(true);
+    this.practice = practice;
+    wx.setStorageSync(PRACTICE_KEY, practice);
+    this.setData({ scenario });
+    this.moveTo(STATES.LISTEN);
+    this.emit('practice_start', { round: 1 });
   },
 
   resetSessionResults() {
+    this.practiceRunId = (this.practiceRunId || 0) + 1;
     this.sessionId = randomId('session');
     this.sessionStartedAt = Date.now();
     this.currentRound = 1;
@@ -228,6 +252,12 @@ Page({
     this.analysisRetryUsed = { 1: false, 2: false };
     this.clearCountdown();
     this.clearAnalysisTimers();
+    this.clearRecordingTimer();
+    if (this.previewAudio) this.previewAudio.stop();
+    this.firstFeedback = null;
+    this.secondFeedback = null;
+    this.errorState = null;
+    this.failedRound = 0;
     this.setData({
       audioPlaying: false,
       audioProgress: 0,
@@ -242,6 +272,10 @@ Page({
       hasRecording: false,
       previewPlaying: false,
       isSubmitting: false,
+      analysisMessage: '正在听你的回应',
+      exitConfirm: null,
+      micPurposeVisible: false,
+      micPermissionDenied: false,
       firstFeedback: null,
       firstFeedbackItems: [],
       firstTranscriptExpanded: false,
@@ -407,9 +441,9 @@ Page({
     });
     this.recorder.onStop((result) => {
       this.clearRecordingTimer();
-      const interrupted = this.recordStopReason === 'interrupted';
+      const discarded = ['interrupted', 'abandoned'].includes(this.recordStopReason);
       this.recordStopReason = '';
-      if (interrupted) {
+      if (discarded) {
         this.recordingPath = '';
         this.recordingDurationMs = 0;
         this.setData({ recording: false, hasRecording: false, recordingDurationText: '0秒' });
@@ -425,6 +459,10 @@ Page({
     });
     this.recorder.onError((error) => {
       this.clearRecordingTimer();
+      if (this.recordStopReason === 'abandoned' || this.data.phase === STATES.TODAY) {
+        this.recordStopReason = '';
+        return;
+      }
       this.showError({ code: 'RECORDER_ERROR', message: error.errMsg }, this.recordPhase());
     });
     if (this.recorder.onInterruptionBegin) {
@@ -572,6 +610,7 @@ Page({
     });
 
     const requestId = createRequestId(this.sessionId, round, Date.now(), Math.random());
+    const practiceRunId = this.practiceRunId;
     try {
       const result = await analyzeRecording({
         tempFilePath: this.recordingPath,
@@ -581,6 +620,7 @@ Page({
         deviceId: this.deviceId,
         round
       });
+      if (practiceRunId !== this.practiceRunId) return;
       this.clearAnalysisTimers();
       this.setData({ isSubmitting: false });
       const dimensionFlags = {
@@ -609,6 +649,7 @@ Page({
         this.finishPracticeRecord(result);
       }
     } catch (error) {
+      if (practiceRunId !== this.practiceRunId) return;
       this.clearAnalysisTimers();
       this.setData({ isSubmitting: false });
       this.emit('analysis_fail', { round, errorCode: error.code || 'UNKNOWN' });
@@ -779,7 +820,6 @@ Page({
       completedAt: Date.now()
     };
     wx.setStorageSync(PRACTICE_KEY, this.practice);
-    this.setData({ todayCompleted: true });
     this.emit('practice_complete', {
       round: 2,
       durationMs: Date.now() - this.sessionStartedAt,
@@ -821,16 +861,54 @@ Page({
   },
 
   completePractice() {
-    this.returnToday();
+    this.returnToSceneSelection();
   },
 
   returnToday() {
+    this.returnToSceneSelection();
+  },
+
+  requestReturnToSceneSelection() {
+    const prompt = getSceneExitPrompt({
+      phase: this.data.phase,
+      recording: this.data.recording,
+      isSubmitting: this.data.isSubmitting,
+      hasRecording: this.data.hasRecording,
+      hasFirstFeedback: Boolean(this.data.firstFeedback)
+    });
+    if (!prompt) {
+      this.returnToSceneSelection();
+      return;
+    }
+    this.setData({ exitConfirm: prompt });
+  },
+
+  cancelReturnToSceneSelection() {
+    this.setData({ exitConfirm: null });
+  },
+
+  confirmReturnToSceneSelection() {
+    this.setData({ exitConfirm: null });
+    this.returnToSceneSelection();
+  },
+
+  returnToSceneSelection() {
+    if (this.data.phase === STATES.TODAY) return;
+    const nextPhase = transition(this.data.phase, STATES.TODAY);
+    if (this.data.recording && this.recorder) {
+      this.recordStopReason = 'abandoned';
+      this.recorder.stop();
+    }
     this.clearCountdown();
     this.pauseScenarioAudio();
+    if (this.scenarioAudio) this.scenarioAudio.stop();
+    if (this.previewAudio) this.previewAudio.stop();
+    this.resetSessionResults();
     this.setData({
-      phase: STATES.TODAY,
+      phase: nextPhase,
       progress: 0,
-      todayCompleted: Boolean(this.practice && this.practice.completed),
+      scenario: null,
+      exitConfirm: null,
       errorView: null
     });
   },

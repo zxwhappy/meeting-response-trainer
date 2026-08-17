@@ -12,26 +12,38 @@ const scenarios = [
   { id: 'off', enabled: false }
 ];
 
-test('keeps the same enabled scenario on repeated visits on the same day', () => {
-  assert.equal(typeof subject.selectDailyScenario, 'function');
-  const result = subject.selectDailyScenario({
-    date: '2026-08-17',
-    scenarios,
-    saved: { date: '2026-08-17', scenarioId: 'b', completed: false }
-  });
-  assert.equal(result.scenarioId, 'b');
+test('lists only enabled scenarios in their configured order', () => {
+  assert.equal(typeof subject.listEnabledScenarios, 'function');
+  assert.deepEqual(subject.listEnabledScenarios(scenarios).map((item) => item.id), ['a', 'b']);
 });
 
-test('next practice advances without selecting a disabled scenario', () => {
-  assert.equal(typeof subject.selectDailyScenario, 'function');
-  const result = subject.selectDailyScenario({
+test('creates a fresh practice for the selected enabled scenario', () => {
+  assert.equal(typeof subject.createPracticeForScenario, 'function');
+  const result = subject.createPracticeForScenario({
     date: '2026-08-17',
     scenarios,
-    saved: { date: '2026-08-17', scenarioId: 'b', completed: true },
-    requestedNext: true
+    scenarioId: 'b'
   });
-  assert.equal(result.scenarioId, 'a');
+  assert.equal(result.scenarioId, 'b');
   assert.equal(result.completed, false);
+});
+
+test('rejects selecting a disabled scenario', () => {
+  assert.throws(
+    () => subject.createPracticeForScenario({
+      date: '2026-08-17',
+      scenarios,
+      scenarioId: 'off'
+    }),
+    /不可用/
+  );
+});
+
+test('warns before leaving an active recording or analysis', () => {
+  assert.equal(typeof subject.getSceneExitPrompt, 'function');
+  assert.match(subject.getSceneExitPrompt({ phase: 'recordFirst' }).content, /进度会被清空/);
+  assert.match(subject.getSceneExitPrompt({ phase: 'analyzingFirst' }).content, /仍可能计入今日次数/);
+  assert.equal(subject.getSceneExitPrompt({ phase: 'listen' }), null);
 });
 
 test('rejects recordings shorter than three seconds', () => {

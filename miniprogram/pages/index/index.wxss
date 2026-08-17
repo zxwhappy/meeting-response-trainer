@@ -23,9 +23,78 @@
   box-shadow: 0 12rpx 36rpx rgba(36, 50, 61, 0.055);
 }
 
-.hero-card {
-  margin-top: 7vh;
-  padding: 52rpx 36rpx 32rpx;
+.scene-selection {
+  padding-top: 24rpx;
+}
+
+.scene-intro {
+  padding: 40rpx 34rpx 36rpx;
+}
+
+.scene-list {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  width: 100%;
+  gap: 20rpx;
+  margin-top: 24rpx;
+}
+
+.scene-option {
+  display: block;
+  align-self: stretch;
+  width: 100% !important;
+  max-width: none;
+  min-height: 0;
+  margin: 0;
+  padding: 30rpx;
+  color: #24323d;
+  line-height: 1.4;
+  text-align: left;
+}
+
+.scene-option::after,
+.back-to-scenes::after {
+  border: 0;
+}
+
+.scene-option-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20rpx;
+}
+
+.scene-option-title {
+  font-size: 34rpx;
+  font-weight: 700;
+}
+
+.scene-option-role,
+.scene-option-copy,
+.scene-option-action {
+  display: block;
+}
+
+.scene-option-role {
+  margin-top: 14rpx;
+  color: #1f746d;
+  font-size: 25rpx;
+  font-weight: 650;
+}
+
+.scene-option-copy {
+  margin-top: 12rpx;
+  color: #68757d;
+  font-size: 26rpx;
+  line-height: 1.6;
+}
+
+.scene-option-action {
+  margin-top: 22rpx;
+  color: #1f8a80;
+  font-size: 26rpx;
+  font-weight: 680;
 }
 
 .brand-mark {
@@ -185,6 +254,21 @@
 
 .stage-header {
   margin: 8rpx 8rpx 30rpx;
+}
+
+.back-to-scenes {
+  display: inline-flex;
+  align-items: center;
+  width: auto;
+  min-height: 64rpx;
+  margin: 0 0 22rpx;
+  padding: 0 12rpx 0 0;
+  border: 0;
+  background: transparent;
+  color: #386b67;
+  font-size: 26rpx;
+  font-weight: 650;
+  line-height: 64rpx;
 }
 
 .stage-labels {

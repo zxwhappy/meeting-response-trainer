@@ -43,3 +43,10 @@ test('returns from an error only to its recorded recovery state', () => {
     subject.STATES.RECORD_FIRST
   );
 });
+
+test('allows every active practice phase to return to scene selection', () => {
+  const phases = Object.values(subject.STATES).filter((phase) => phase !== subject.STATES.TODAY);
+  phases.forEach((phase) => {
+    assert.equal(subject.transition(phase, subject.STATES.TODAY), subject.STATES.TODAY);
+  });
+});

@@ -2,33 +2,32 @@
   <view wx:if="{{mockMode}}" class="mock-banner">开发模拟模式 · 真实用户测试前必须关闭</view>
 
   <view wx:if="{{phase !== STATES.TODAY}}" class="stage-header" aria-label="练习进度">
+    <button class="back-to-scenes" bindtap="requestReturnToSceneSelection" aria-label="返回选择场景">‹ 返回选场景</button>
     <view class="stage-labels">
       <text>听题</text><text>准备</text><text>回应</text><text>反馈</text><text>复练</text>
     </view>
     <view class="progress-track"><view class="progress-fill" style="width: {{progress}}%;"></view></view>
   </view>
 
-  <view wx:if="{{phase === STATES.TODAY}}" class="hero-card card">
-    <view class="brand-mark">答</view>
-    <text class="eyebrow">会答小练</text>
-    <text class="hero-title">听完一段会议发言，练习说清判断和下一步</text>
-    <text class="hero-copy">不背标准答案。先说一次，拿到三点短反馈，再针对同一场景说一次。</text>
-
-    <view class="today-scene">
-      <view>
-        <text class="meta-label">今日会议场景</text>
-        <text class="scene-title">{{scenario.title}}</text>
-      </view>
-      <text class="duration-chip">约 3 分钟</text>
+  <view wx:if="{{phase === STATES.TODAY}}" class="scene-selection">
+    <view class="scene-intro card">
+      <view class="brand-mark">答</view>
+      <text class="eyebrow">会答小练</text>
+      <text class="hero-title">今天想练哪种会议回应？</text>
+      <text class="hero-copy">选择一个场景。听完发言后先说一次，再根据三点反馈复练。</text>
     </view>
 
-    <view wx:if="{{todayCompleted}}" class="completed-note">
-      <text class="completed-icon">✓</text>
-      <text>今日已完成</text>
+    <view class="scene-list" aria-label="会议场景列表">
+      <button wx:for="{{scenarioOptions}}" wx:key="id" class="scene-option card" data-id="{{item.id}}" bindtap="selectScenario">
+        <view class="scene-option-top">
+          <text class="scene-option-title">{{item.title}}</text>
+          <text class="duration-chip">约 3 分钟</text>
+        </view>
+        <text class="scene-option-role">你是{{item.role}}</text>
+        <text class="scene-option-copy">{{item.background}}</text>
+        <text class="scene-option-action">开始这个场景　›</text>
+      </button>
     </view>
-
-    <button wx:if="{{!todayCompleted}}" class="primary-button" bindtap="startPractice">开始练习</button>
-    <button wx:else class="primary-button" bindtap="nextPractice">再练一题</button>
     <button class="text-button privacy-entry" bindtap="showPrivacy">隐私说明</button>
   </view>
 
@@ -222,8 +221,8 @@
       <view class="input-footer"><text>{{scenarioRequest.length}} / 100</text><button class="small-submit" disabled="{{!scenarioRequest || requestSubmitted}}" bindtap="submitScenarioRequest">{{requestSubmitted ? '已提交' : '提交'}}</button></view>
     </view>
 
-    <button class="primary-button" bindtap="completePractice">完成练习</button>
-    <button class="secondary-button bottom-secondary" bindtap="nextPractice">再练一题</button>
+    <button class="primary-button" bindtap="completePractice">返回场景列表</button>
+    <button class="secondary-button bottom-secondary" bindtap="repeatScenario">再练当前场景</button>
   </view>
 
   <view wx:if="{{phase === STATES.ERROR}}" class="card task-card centered-card error-card">
@@ -235,6 +234,15 @@
     <button wx:if="{{errorView.canRerecord}}" class="secondary-button" bindtap="rerecordFromError">重新录音</button>
     <button wx:if="{{errorView.canFallback}}" class="text-button" bindtap="useSelfCheck">使用三点自检完成本轮</button>
     <button class="text-button" bindtap="returnToday">暂不练习</button>
+  </view>
+
+  <view wx:if="{{exitConfirm}}" class="modal-mask" catchtouchmove="noop">
+    <view class="modal-card exit-confirm-card">
+      <text class="modal-title">{{exitConfirm.title}}</text>
+      <text class="modal-copy">{{exitConfirm.content}}</text>
+      <button class="primary-button" bindtap="confirmReturnToSceneSelection">返回选场景</button>
+      <button class="text-button" bindtap="cancelReturnToSceneSelection">继续练习</button>
+    </view>
   </view>
 
   <view wx:if="{{privacyVisible}}" class="modal-mask" catchtouchmove="noop">
