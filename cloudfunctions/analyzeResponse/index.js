@@ -4,7 +4,7 @@ const { validateFeedback } = require('./lib/feedback');
 const { runAnalysisPipeline, prepareWithCleanupHandoff } = require('./lib/pipeline');
 const { anonymousUserKey, stableDocumentId, chinaDate } = require('./lib/user');
 const { createTencentAsr } = require('./lib/asr/tencent');
-const { createOpenAiAnalyzer } = require('./lib/ai/openaiCompatible');
+const { createCloudBaseAnalyzer } = require('./lib/ai/cloudbaseHunyuan');
 const scenarios = require('./data/scenarios');
 
 cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
@@ -223,7 +223,7 @@ async function analyze(openId, event) {
       prepare: async () => {
         const userKey = anonymousUserKey(openId, process.env.USER_HASH_SALT);
         const transcribe = createTencentAsr(process.env);
-        const aiAnalyze = createOpenAiAnalyzer(process.env);
+        const aiAnalyze = createCloudBaseAnalyzer(cloud, process.env);
         claim = await claimDailyUsage({ userKey, requestId, date: chinaDate() });
         if (!claim.allowed) {
           const error = new Error(claim.code);

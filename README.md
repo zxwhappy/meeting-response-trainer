@@ -10,7 +10,7 @@
 - 10 个产品状态由显式状态机约束，没有 TabBar、登录页、课程或个人中心。
 - `RecorderManager` 使用 16kHz、单声道、MP3，3 秒最短、60 秒自动停止；支持试听、重录、后台安全停止和授权拒绝恢复。
 - 会议音频最多播放两次；连续两次失败后才显示文字版并记录 `audio_fallback_text`。
-- 真实链路为：云存储临时文件 → 服务端额度/幂等检查 → 腾讯一句话识别 → OpenAI 兼容模型 → 结构校验 → `finally` 删除录音。
+- 真实链路为：云存储临时文件 → 服务端额度/幂等检查 → 腾讯一句话识别 → 微信云开发 AI+ 混元模型 → 结构校验 → `finally` 删除录音。
 - AI 返回格式不合格会自动重试一次；客户端 45 秒超时后进入可恢复异常页。
 - 服务端每日最多 10 次分析；请求 ID 幂等；OpenID 只在内存中参与 HMAC，不保存原值。
 - 数据库不保存完整转写或原始录音。删除失败的文件由每 30 分钟运行的清理函数再次处理，一小时后进入清理范围。
@@ -70,7 +70,8 @@ npm run check
 
 - `USER_HASH_SALT`：至少 16 位的随机盐；上线后不要随意更换，否则匿名用户键与日额度会重新开始。
 - `TC_SECRET_ID`、`TC_SECRET_KEY`：仅有语音识别权限的腾讯云子账号密钥。
-- `AI_BASE_URL`、`AI_API_KEY`、`AI_MODEL`：OpenAI 兼容接口配置。
+
+AI 模型通过云函数内的 `wx-server-sdk` 调用，不需要配置 DeepSeek API Key 或模型 Base URL。`AI_PROVIDER`、`AI_MODEL` 和 `AI_TIMEOUT_MS` 都是可选项，默认分别为 `hunyuan-v3`、`hy3` 和 `12000`。
 
 ### 3. 部署函数
 
@@ -92,21 +93,21 @@ npm run check
 
 参考：[一句话识别 API](https://cloud.tencent.com/document/api/1093/35646)、[TC3 签名方法](https://cloud.tencent.com/document/api/213/30654)。
 
-## OpenAI 兼容模型配置
+## 微信云开发 AI+ 配置
 
-默认示例为 DeepSeek：
+1. 在当前云环境的 AI+ 模型管理中开通成长计划支持的 `hy3`。
+2. 保持云函数依赖 `wx-server-sdk 4.0.2`，并在重新部署 `analyzeResponse` 时选择“云端安装依赖”。
+3. 默认无需添加任何 AI 密钥；仅需在改模型或调整超时时间时覆盖以下变量：
 
 ```text
-AI_BASE_URL=https://api.deepseek.com/v1
-AI_MODEL=deepseek-chat
-AI_JSON_MODE=true
-AI_MAX_TOKENS=500
+AI_PROVIDER=hunyuan-v3
+AI_MODEL=hy3
 AI_TIMEOUT_MS=12000
 ```
 
-其他 OpenAI 兼容接口也可使用。如果服务不支持 `response_format: {type: "json_object"}`，把 `AI_JSON_MODE` 设为 `false`。模型只收到服务端内置场景、会议原文和本次转写；提示词禁止评价发音、性格等内容，也不生成标准答案。
+适配器使用 `cloud.ai().createModel('hunyuan-v3').generateText(...)`。成长计划免费 Token 额度要求通过小程序或云开发服务端官方 SDK 调用；直接请求其他模型厂商的 HTTP API 不会使用这部分额度。模型只收到服务端内置场景、会议原文和本次转写；提示词禁止评价发音、性格等内容，也不生成标准答案。
 
-真实用户测试前，必须确认所选模型供应商的 API 数据留存、训练使用、数据地域和删除政策与隐私声明一致；仅在界面写“不用于训练”不能替代供应商条款或企业设置。
+以上规则于 2026-08-17 按官方资料复核：[成长计划说明](https://docs.cloudbase.net/ai/ai-inspire-plan)、[接入指引](https://docs.cloudbase.net/ai/ai-inspire-plan-guide)、[服务端 SDK 接入](https://docs.cloudbase.net/ai/model/wx-server-sdk-access)。真实用户测试前仍须确认云开发 AI+ 与混元当日的数据留存、训练使用、数据地域和删除政策，并让隐私声明与实际处理链路一致。
 
 ## 模拟模式
 
@@ -117,7 +118,7 @@ AI_TIMEOUT_MS=12000
 ## 微信公众平台需要人工完成
 
 - 填写真实 AppID、云环境和测试成员。
-- 在“小程序用户隐私保护指引”中声明麦克风/录音用途、处理方式、保存期限，以及腾讯云 ASR 和所选 AI 供应商等第三方处理方。
+- 在“小程序用户隐私保护指引”中声明麦克风/录音用途、处理方式、保存期限，以及腾讯云 ASR、微信云开发 AI+ / 混元等第三方处理方。
 - 确认服务类目、隐私指引、用户信息处理说明、第三方共享/委托处理和数据跨境情况符合提交审核当日规则。
 - 使用 `open-type="agreePrivacyAuthorization"` 的同意按钮在代码中已实现；仍要在后台完成隐私指引配置，否则接口不会形成合规闭环。
 - 复核云数据库安全规则、云函数环境变量和定时清理触发器。
