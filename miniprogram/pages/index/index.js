@@ -96,6 +96,7 @@ Page({
     privacyVisible: false,
     exitConfirm: null,
     micPurposeVisible: false,
+    privacyAuthorizationNeeded: false,
     micPermissionDenied: false,
     audioPlaying: false,
     audioProgress: 0,
@@ -137,6 +138,7 @@ Page({
     this.analysisRetryUsed = { 1: false, 2: false };
     this.practiceRunId = 0;
     this.micExplained = false;
+    this.previewRequested = false;
     this.interruptedRecording = false;
     this.initScenarioSelection();
     this.initAudioManagers();
@@ -171,6 +173,7 @@ Page({
     this.clearRecordingTimer();
     this.clearAnalysisTimers();
     this.clearAudioTimer();
+    this.previewRequested = false;
     if (this.scenarioAudio) this.scenarioAudio.destroy();
     if (this.previewAudio) this.previewAudio.destroy();
   },
@@ -253,7 +256,9 @@ Page({
     this.clearCountdown();
     this.clearAnalysisTimers();
     this.clearRecordingTimer();
-    if (this.previewAudio) this.previewAudio.stop();
+    const previewWasActive = this.previewRequested || this.data.previewPlaying;
+    this.previewRequested = false;
+    if (this.previewAudio && previewWasActive) this.previewAudio.stop();
     this.firstFeedback = null;
     this.secondFeedback = null;
     this.errorState = null;
@@ -275,6 +280,7 @@ Page({
       analysisMessage: '正在听你的回应',
       exitConfirm: null,
       micPurposeVisible: false,
+      privacyAuthorizationNeeded: false,
       micPermissionDenied: false,
       firstFeedback: null,
       firstFeedbackItems: [],
@@ -312,10 +318,17 @@ Page({
     this.scenarioAudio.onError(() => this.handleScenarioAudioError());
 
     this.previewAudio = wx.createInnerAudioContext();
-    this.previewAudio.onEnded(() => this.setData({ previewPlaying: false }));
-    this.previewAudio.onError(() => {
+    this.previewAudio.onEnded(() => {
+      this.previewRequested = false;
       this.setData({ previewPlaying: false });
-      wx.showToast({ title: '试听失败，请重新录制', icon: 'none' });
+    });
+    this.previewAudio.onError(() => {
+      const shouldNotify = this.previewRequested && Boolean(this.recordingPath);
+      this.previewRequested = false;
+      this.setData({ previewPlaying: false });
+      if (shouldNotify) {
+        wx.showToast({ title: '试听失败，请重新录制', icon: 'none' });
+      }
     });
   },
 
@@ -483,20 +496,43 @@ Page({
   requestStartRecording() {
     if (this.data.recording || this.data.isSubmitting) return;
     if (!this.micExplained) {
-      this.setData({ micPurposeVisible: true });
+      this.prepareMicPurpose();
       return;
     }
     this.ensureMicrophonePermission();
   },
 
+  prepareMicPurpose() {
+    const showPurpose = (privacyAuthorizationNeeded) => {
+      this.setData({
+        micPurposeVisible: true,
+        privacyAuthorizationNeeded
+      });
+    };
+    if (typeof wx.getPrivacySetting !== 'function') {
+      showPurpose(false);
+      return;
+    }
+    wx.getPrivacySetting({
+      success: (result) => showPurpose(Boolean(result.needAuthorization)),
+      fail: () => showPurpose(false)
+    });
+  },
+
   acceptMicPurpose() {
     this.micExplained = true;
-    this.setData({ micPurposeVisible: false });
+    this.setData({
+      micPurposeVisible: false,
+      privacyAuthorizationNeeded: false
+    });
     this.ensureMicrophonePermission();
   },
 
   declineMicPurpose() {
-    this.setData({ micPurposeVisible: false });
+    this.setData({
+      micPurposeVisible: false,
+      privacyAuthorizationNeeded: false
+    });
     this.returnToday();
   },
 
@@ -563,17 +599,21 @@ Page({
   togglePreview() {
     if (!this.recordingPath) return;
     if (this.data.previewPlaying) {
+      this.previewRequested = false;
       this.previewAudio.stop();
       this.setData({ previewPlaying: false });
       return;
     }
+    this.previewRequested = true;
     this.previewAudio.src = this.recordingPath;
     this.previewAudio.play();
     this.setData({ previewPlaying: true });
   },
 
   rerecord() {
-    this.previewAudio.stop();
+    const previewWasActive = this.previewRequested || this.data.previewPlaying;
+    this.previewRequested = false;
+    if (previewWasActive) this.previewAudio.stop();
     this.recordingPath = '';
     this.recordingDurationMs = 0;
     this.setData({ hasRecording: false, previewPlaying: false, recordingDurationText: '0秒' });
@@ -902,7 +942,6 @@ Page({
     this.clearCountdown();
     this.pauseScenarioAudio();
     if (this.scenarioAudio) this.scenarioAudio.stop();
-    if (this.previewAudio) this.previewAudio.stop();
     this.resetSessionResults();
     this.setData({
       phase: nextPhase,

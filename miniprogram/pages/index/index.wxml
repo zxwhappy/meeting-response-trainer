@@ -259,7 +259,8 @@
     <view class="modal-card">
       <text class="modal-title">用录音完成这次练习</text>
       <text class="modal-copy">我们需要麦克风录下你的回应，只用于转写和生成本次反馈。处理完成后会删除，不会用于训练模型。</text>
-      <button id="agree-privacy-button" class="primary-button" open-type="agreePrivacyAuthorization" bindagreeprivacyauthorization="acceptMicPurpose">继续并授权</button>
+      <button wx:if="{{privacyAuthorizationNeeded}}" id="agree-privacy-button" class="primary-button" open-type="agreePrivacyAuthorization" bindagreeprivacyauthorization="acceptMicPurpose">同意隐私说明并继续</button>
+      <button wx:else class="primary-button" bindtap="acceptMicPurpose">申请麦克风权限</button>
       <button class="text-button" bindtap="declineMicPurpose">暂不练习</button>
     </view>
   </view>
