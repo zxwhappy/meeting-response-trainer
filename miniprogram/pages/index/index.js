@@ -85,6 +85,19 @@ function friendlyError(error) {
   return messages[error.code] || error.message || '刚才没有完成，可以从这里重试。';
 }
 
+function isPrivacyScopeUndeclared(error) {
+  const errno = Number(error && error.errno);
+  const message = String(error && error.errMsg || '');
+  return errno === 112 || /api scope is not declared in the privacy agreement/i.test(message);
+}
+
+function permissionDetail(error) {
+  if (!error) return '';
+  const message = String(error.errMsg || error.message || '');
+  const errno = error.errno === undefined ? '' : ` (errno: ${error.errno})`;
+  return `${message}${errno}`.trim();
+}
+
 Page({
   data: {
     STATES,
@@ -98,6 +111,11 @@ Page({
     micPurposeVisible: false,
     privacyAuthorizationNeeded: false,
     micPermissionDenied: false,
+    micPermissionIssue: '',
+    micPermissionTitle: '需要麦克风权限',
+    micPermissionMessage: '允许后才能录制回应；我们不会长期保存录音。',
+    micPermissionActionText: '打开小程序设置',
+    micPermissionDetail: '',
     audioPlaying: false,
     audioProgress: 0,
     audioCurrentText: '0:00',
@@ -147,6 +165,12 @@ Page({
   },
 
   onShow() {
+    if (this.pendingSystemMicCheck) {
+      this.pendingSystemMicCheck = false;
+      if (this.getSystemMicrophoneAuthorization() === 'authorized') {
+        this.clearMicPermissionIssue();
+      }
+    }
     if (this.interruptedRecording) {
       this.interruptedRecording = false;
       wx.showModal({
@@ -282,6 +306,11 @@ Page({
       micPurposeVisible: false,
       privacyAuthorizationNeeded: false,
       micPermissionDenied: false,
+      micPermissionIssue: '',
+      micPermissionTitle: '需要麦克风权限',
+      micPermissionMessage: '允许后才能录制回应；我们不会长期保存录音。',
+      micPermissionActionText: '打开小程序设置',
+      micPermissionDetail: '',
       firstFeedback: null,
       firstFeedbackItems: [],
       firstTranscriptExpanded: false,
@@ -476,6 +505,10 @@ Page({
         this.recordStopReason = '';
         return;
       }
+      if (/auth|permission|authorize/i.test(String(error.errMsg || error.message || ''))) {
+        this.handleMicPermissionFailure(error);
+        return;
+      }
       this.showError({ code: 'RECORDER_ERROR', message: error.errMsg }, this.recordPhase());
     });
     if (this.recorder.onInterruptionBegin) {
@@ -543,22 +576,133 @@ Page({
           this.beginRecording();
           return;
         }
+        if (settings.authSetting['scope.record'] === false) {
+          this.setMicPermissionIssue('miniProgram');
+          return;
+        }
         wx.authorize({
           scope: 'scope.record',
           success: () => this.beginRecording(),
-          fail: () => this.setData({ micPermissionDenied: true })
+          fail: (error) => this.handleMicPermissionFailure(error)
         });
       },
-      fail: () => this.setData({ micPermissionDenied: true })
+      fail: (error) => this.setMicPermissionIssue('unknown', error)
     });
+  },
+
+  getSystemMicrophoneAuthorization() {
+    if (typeof wx.getAppAuthorizeSetting !== 'function') return '';
+    try {
+      return wx.getAppAuthorizeSetting().microphoneAuthorized || '';
+    } catch (_) {
+      return '';
+    }
+  },
+
+  handleMicPermissionFailure(error) {
+    if (isPrivacyScopeUndeclared(error)) {
+      this.setMicPermissionIssue('privacyConfig', error);
+      return;
+    }
+    wx.getSetting({
+      success: (settings) => {
+        if (settings.authSetting['scope.record'] === false) {
+          this.setMicPermissionIssue('miniProgram', error);
+          return;
+        }
+        if (this.getSystemMicrophoneAuthorization() === 'denied') {
+          this.setMicPermissionIssue('system', error);
+          return;
+        }
+        this.setMicPermissionIssue('unknown', error);
+      },
+      fail: () => this.setMicPermissionIssue('unknown', error)
+    });
+  },
+
+  setMicPermissionIssue(issue, error) {
+    const content = {
+      privacyConfig: {
+        title: '麦克风服务还没配置好',
+        message: '当前版本暂时无法申请麦克风权限，请稍后再试。',
+        action: '重新检查'
+      },
+      system: {
+        title: '需要手机麦克风权限',
+        message: '请允许微信使用手机麦克风，然后返回继续录音。',
+        action: '打开系统设置'
+      },
+      miniProgram: {
+        title: '需要麦克风权限',
+        message: '请在小程序设置里允许使用麦克风，然后返回继续录音。',
+        action: '打开小程序设置'
+      },
+      unknown: {
+        title: '麦克风授权没有完成',
+        message: '请重新申请一次；如果仍然失败，请稍后再试。',
+        action: '重新申请'
+      }
+    }[issue] || {};
+    const development = typeof __wxConfig !== 'undefined' && __wxConfig.envVersion !== 'release';
+    this.setData({
+      micPermissionDenied: true,
+      micPermissionIssue: issue,
+      micPermissionTitle: content.title || '需要麦克风权限',
+      micPermissionMessage: content.message || '请重新申请麦克风权限。',
+      micPermissionActionText: content.action || '重新申请',
+      micPermissionDetail: development ? permissionDetail(error) : ''
+    });
+  },
+
+  clearMicPermissionIssue() {
+    this.setData({
+      micPermissionDenied: false,
+      micPermissionIssue: '',
+      micPermissionDetail: ''
+    });
+  },
+
+  handleMicPermissionAction() {
+    if (this.data.micPermissionIssue === 'system') {
+      this.openSystemSettings();
+      return;
+    }
+    if (this.data.micPermissionIssue === 'miniProgram') {
+      this.openSettings();
+      return;
+    }
+    this.clearMicPermissionIssue();
+    this.ensureMicrophonePermission();
   },
 
   openSettings() {
     wx.openSetting({
       success: (result) => {
         const allowed = Boolean(result.authSetting['scope.record']);
-        this.setData({ micPermissionDenied: !allowed });
-        if (allowed) this.beginRecording();
+        if (allowed) {
+          this.beginRecording();
+          return;
+        }
+        this.setMicPermissionIssue('miniProgram');
+      },
+      fail: (error) => this.setMicPermissionIssue('miniProgram', error)
+    });
+  },
+
+  openSystemSettings() {
+    if (typeof wx.openAppAuthorizeSetting !== 'function') {
+      wx.showModal({
+        title: '请在手机系统设置中开启',
+        content: '找到微信的权限设置，允许微信使用麦克风后再回来。',
+        showCancel: false
+      });
+      return;
+    }
+    this.pendingSystemMicCheck = true;
+    wx.openAppAuthorizeSetting({
+      fail: (error) => {
+        this.pendingSystemMicCheck = false;
+        this.setMicPermissionIssue('system', error);
       }
     });
   },
@@ -566,7 +710,8 @@ Page({
   beginRecording() {
     this.recordingPath = '';
     this.recordingDurationMs = 0;
-    this.setData({ micPermissionDenied: false, hasRecording: false, previewPlaying: false });
+    this.clearMicPermissionIssue();
+    this.setData({ hasRecording: false, previewPlaying: false });
     this.recorder.start({
       duration: 60000,
       sampleRate: 16000,

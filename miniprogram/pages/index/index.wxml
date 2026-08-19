@@ -68,9 +68,10 @@
     <text class="support-copy">最长 60 秒，至少说满 3 秒</text>
 
     <view wx:if="{{micPermissionDenied}}" class="permission-box">
-      <text class="fallback-title">需要麦克风权限</text>
-      <text class="body-copy">允许后才能录制回应；我们不会长期保存录音。</text>
-      <button class="primary-button" bindtap="openSettings">打开设置</button>
+      <text class="fallback-title">{{micPermissionTitle}}</text>
+      <text class="body-copy">{{micPermissionMessage}}</text>
+      <text wx:if="{{micPermissionDetail}}" class="dev-detail">开发信息：{{micPermissionDetail}}</text>
+      <button class="primary-button" bindtap="handleMicPermissionAction">{{micPermissionActionText}}</button>
       <button class="text-button" bindtap="returnToday">暂不练习</button>
     </view>
 
@@ -152,8 +153,10 @@
 
     <view wx:else>
       <view wx:if="{{micPermissionDenied}}" class="permission-box">
-        <text class="fallback-title">需要麦克风权限</text>
-        <button class="primary-button" bindtap="openSettings">打开设置</button>
+        <text class="fallback-title">{{micPermissionTitle}}</text>
+        <text class="body-copy">{{micPermissionMessage}}</text>
+        <text wx:if="{{micPermissionDetail}}" class="dev-detail">开发信息：{{micPermissionDetail}}</text>
+        <button class="primary-button" bindtap="handleMicPermissionAction">{{micPermissionActionText}}</button>
         <button class="text-button" bindtap="returnToday">暂不练习</button>
       </view>
 

@@ -117,3 +117,45 @@ test('uses the normal microphone permission path after privacy was authorized', 
   assert.equal(authorizedScope, 'scope.record');
   assert.equal(recordingStarted, true);
 });
+
+test('reports an undeclared privacy scope instead of opening user settings', () => {
+  const page = createPage(loadPageDefinition({}));
+
+  page.handleMicPermissionFailure({
+    errMsg: 'authorize:fail api scope is not declared in the privacy agreement',
+    errno: 112
+  });
+
+  assert.equal(page.data.micPermissionDenied, true);
+  assert.equal(page.data.micPermissionIssue, 'privacyConfig');
+  assert.equal(page.data.micPermissionActionText, '重新检查');
+});
+
+test('keeps mini program denial separate from system microphone denial', () => {
+  const page = createPage(loadPageDefinition({
+    getSetting: ({ success }) => success({ authSetting: { 'scope.record': false } }),
+    getAppAuthorizeSetting: () => ({ microphoneAuthorized: 'denied' })
+  }));
+
+  page.handleMicPermissionFailure({ errMsg: 'authorize:fail auth deny' });
+
+  assert.equal(page.data.micPermissionIssue, 'miniProgram');
+  assert.equal(page.data.micPermissionActionText, '打开小程序设置');
+});
+
+test('opens system settings when WeChat has no device microphone permission', () => {
+  let opened = false;
+  const page = createPage(loadPageDefinition({
+    getSetting: ({ success }) => success({ authSetting: {} }),
+    getAppAuthorizeSetting: () => ({ microphoneAuthorized: 'denied' }),
+    openAppAuthorizeSetting: () => {
+      opened = true;
+    }
+  }));
+
+  page.handleMicPermissionFailure({ errMsg: 'authorize:fail system permission denied' });
+  page.handleMicPermissionAction();
+
+  assert.equal(page.data.micPermissionIssue, 'system');
+  assert.equal(opened, true);
+});
